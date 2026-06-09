@@ -1,0 +1,48 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: smartfood-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: smartfood
+      POSTGRES_PASSWORD: smartfood
+      POSTGRES_DB: smartfood_pdv
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  backend:
+    build: ./backend
+    container_name: smartfood-backend
+    restart: unless-stopped
+    depends_on:
+      - postgres
+    environment:
+      DATABASE_URL: postgresql://smartfood:smartfood@postgres:5432/smartfood_pdv?schema=public
+      JWT_SECRET: smartfood-dev-secret
+      PORT: 3333
+    ports:
+      - "3333:3333"
+    command: sh -c "npx prisma migrate deploy && npx prisma db seed && npm run dev"
+    volumes:
+      - ./backend:/app
+      - /app/node_modules
+
+  frontend:
+    build: ./frontend
+    container_name: smartfood-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "5173:5173"
+    environment:
+      VITE_API_URL: http://localhost:3333
+    command: npm run dev -- --host 0.0.0.0
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+
+volumes:
+  postgres_data:

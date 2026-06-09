@@ -1,0 +1,265 @@
+generator client {
+  provider = "prisma-client-js"
+  engineType = "binary"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  MANAGER
+  CASHIER
+  WAITER
+  KITCHEN
+  COURIER
+}
+
+enum TableStatus {
+  FREE
+  OCCUPIED
+  WAITING_PAYMENT
+}
+
+enum OrderOrigin {
+  HALL
+  COUNTER
+  DELIVERY
+  IFOOD
+  WHATSAPP
+}
+
+enum OrderStatus {
+  NEW
+  ACCEPTED
+  PREPARING
+  READY
+  OUT_FOR_DELIVERY
+  DELIVERED
+  CANCELED
+}
+
+enum PaymentMethod {
+  CASH
+  PIX
+  CREDIT_CARD
+  DEBIT_CARD
+  MIXED
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  CANCELED
+  REFUNDED
+}
+
+enum CourierStatus {
+  AVAILABLE
+  DELIVERING
+  ABSENT
+}
+
+enum StockMovementType {
+  IN
+  OUT
+  AUTO_SALE
+}
+
+model Company {
+  id        String   @id @default(cuid())
+  name      String
+  document  String?
+  createdAt DateTime @default(now())
+  users     User[]
+  products  Product[]
+  categories Category[]
+  tables    RestaurantTable[]
+  orders    Order[]
+  couriers  Courier[]
+  ingredients Ingredient[]
+  customers Customer[]
+  ifoodIntegration IfoodIntegration?
+  ifoodEvents IfoodEvent[]
+}
+
+model User {
+  id        String   @id @default(cuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id])
+  name      String
+  email     String   @unique
+  password  String
+  role      Role     @default(WAITER)
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  timeClocks TimeClock[]
+}
+
+model TimeClock {
+  id String @id @default(cuid())
+  userId String
+  user User @relation(fields: [userId], references: [id])
+  checkIn DateTime @default(now())
+  checkOut DateTime?
+}
+
+model Category {
+  id String @id @default(cuid())
+  companyId String
+  company Company @relation(fields: [companyId], references: [id])
+  name String
+  products Product[]
+}
+
+model Product {
+  id String @id @default(cuid())
+  companyId String
+  company Company @relation(fields: [companyId], references: [id])
+  categoryId String?
+  category Category? @relation(fields: [categoryId], references: [id])
+  name String
+  description String?
+  price Decimal @db.Decimal(10,2)
+  station String @default("geral")
+  imageUrl String?
+  active Boolean @default(true)
+  recipeItems RecipeItem[]
+  orderItems OrderItem[]
+}
+
+model Ingredient {
+  id String @id @default(cuid())
+  companyId String
+  company Company @relation(fields: [companyId], references: [id])
+  name String
+  unit String
+  currentStock Decimal @db.Decimal(10,3)
+  minStock Decimal @db.Decimal(10,3)
+  recipeItems RecipeItem[]
+  stockMovements StockMovement[]
+}
+
+model RecipeItem {
+  id String @id @default(cuid())
+  productId String
+  product Product @relation(fields: [productId], references: [id])
+  ingredientId String
+  ingredient Ingredient @relation(fields: [ingredientId], references: [id])
+  quantity Decimal @db.Decimal(10,3)
+}
+
+model RestaurantTable {
+  id String @id @default(cuid())
+  companyId String
+  company Company @relation(fields: [companyId], references: [id])
+  number Int
+  status TableStatus @default(FREE)
+  orders Order[]
+}
+
+model Customer {
+  id String @id @default(cuid())
+  companyId String
+  company Company @relation(fields: [companyId], references: [id])
+  name String
+  phone String?
+  address String?
+  orders Order[]
+}
+
+model Courier {
+  id String @id @default(cuid())
+  companyId String
+  company Company @relation(fields: [companyId], references: [id])
+  name String
+  phone String?
+  vehicle String?
+  plate String?
+  status CourierStatus @default(AVAILABLE)
+  commissionPerDelivery Decimal @db.Decimal(10,2) @default(5)
+  orders Order[]
+}
+
+model Order {
+  id String @id @default(cuid())
+  companyId String
+  company Company @relation(fields: [companyId], references: [id])
+  tableId String?
+  table RestaurantTable? @relation(fields: [tableId], references: [id])
+  customerId String?
+  customer Customer? @relation(fields: [customerId], references: [id])
+  courierId String?
+  courier Courier? @relation(fields: [courierId], references: [id])
+  externalOrderId String?
+  origin OrderOrigin @default(HALL)
+  status OrderStatus @default(NEW)
+  notes String?
+  total Decimal @db.Decimal(10,2) @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  items OrderItem[]
+  payments Payment[]
+}
+
+model OrderItem {
+  id String @id @default(cuid())
+  orderId String
+  order Order @relation(fields: [orderId], references: [id])
+  productId String
+  product Product @relation(fields: [productId], references: [id])
+  quantity Int
+  unitPrice Decimal @db.Decimal(10,2)
+  notes String?
+}
+
+model Payment {
+  id String @id @default(cuid())
+  orderId String
+  order Order @relation(fields: [orderId], references: [id])
+  method PaymentMethod
+  status PaymentStatus @default(PENDING)
+  amount Decimal @db.Decimal(10,2)
+  createdAt DateTime @default(now())
+}
+
+model StockMovement {
+  id String @id @default(cuid())
+  ingredientId String
+  ingredient Ingredient @relation(fields: [ingredientId], references: [id])
+  type StockMovementType
+  quantity Decimal @db.Decimal(10,3)
+  description String?
+  createdAt DateTime @default(now())
+}
+
+model IfoodIntegration {
+  id              String   @id @default(cuid())
+  companyId       String   @unique
+  company         Company  @relation(fields: [companyId], references: [id])
+  merchantId      String
+  clientId        String
+  clientSecret    String
+  baseUrl         String   @default("https://merchant-api.ifood.com.br")
+  enabled         Boolean  @default(false)
+  autoConfirm     Boolean  @default(true)
+  pollingInterval Int      @default(30)
+  lastSyncAt      DateTime?
+  lastSuccessAt   DateTime?
+  lastError       String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model IfoodEvent {
+  id         String   @id
+  companyId  String
+  company    Company  @relation(fields: [companyId], references: [id])
+  orderId    String?
+  code       String?
+  createdAt  DateTime @default(now())
+
+  @@index([companyId])
+}
