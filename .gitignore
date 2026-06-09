@@ -1,0 +1,19 @@
+# Dependencies
+node_modules/
+**/node_modules/
+
+# Generated builds
+dist/
+**/dist/
+
+# Environment and local tooling
+.env
+.env.*
+!.env.example
+.vercel/
+
+# Logs and operating system files
+*.log
+.DS_Store
+Thumbs.db
+

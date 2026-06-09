@@ -8,6 +8,7 @@ import {
   Bot,
   CheckCircle2,
   ChefHat,
+  ClipboardCheck,
   Clock3,
   CreditCard,
   DollarSign,
@@ -918,6 +919,7 @@ function Integrations() {
 }
 
 function Reports() {
+  const [actionMessage, setActionMessage] = useState('');
   const { data, loading, error, reload } = useRemote<Any>(async () => {
     const [dashboardRes, ordersRes, ingredientsRes, couriersRes] = await Promise.all([
       api.get('/dashboard'),
@@ -938,30 +940,89 @@ function Reports() {
 
   const orders = data.orders || [];
   const paidOrders = orders.filter((order: Any) => (order.payments || []).some((payment: Any) => payment.status === 'PAID'));
-  const paymentTotals = orders.flatMap((order: Any) => order.payments || []).reduce((acc: Record<string, number>, payment: Any) => {
+  const validOrders = orders.filter((order: Any) => order.status !== 'CANCELED');
+  const paidPayments = validOrders.flatMap((order: Any) => order.payments || []).filter((payment: Any) => payment.status === 'PAID');
+  const paymentTotals = paidPayments.reduce((acc: Record<string, number>, payment: Any) => {
     acc[payment.method] = (acc[payment.method] || 0) + Number(payment.amount || 0);
+    return acc;
+  }, {});
+  const originTotals = validOrders.reduce((acc: Record<string, number>, order: Any) => {
+    acc[order.origin] = (acc[order.origin] || 0) + Number(order.total || 0);
     return acc;
   }, {});
   const canceled = orders.filter((order: Any) => order.status === 'CANCELED');
   const lowStock = (data.ingredients || []).filter((item: Any) => Number(item.currentStock) <= Number(item.minStock));
   const courierCommissions = (data.couriers || []).reduce((sum: number, courier: Any) => sum + courier.orders.length * Number(courier.commissionPerDelivery), 0);
+  const receivedTotal = paidPayments.reduce((sum: number, payment: Any) => sum + Number(payment.amount || 0), 0);
+  const expectedTotal = validOrders.reduce((sum: number, order: Any) => sum + Number(order.total || 0), 0);
+  const pendingAmount = Math.max(0, expectedTotal - receivedTotal);
+  const openOrders = validOrders.filter((order: Any) => !['DELIVERED'].includes(order.status));
+  const closingChecks = [
+    { label: 'Pedidos finalizados', ok: openOrders.length === 0, detail: openOrders.length ? `${openOrders.length} em aberto` : 'Tudo concluido' },
+    { label: 'Recebimentos conciliados', ok: pendingAmount < 0.01, detail: pendingAmount ? `${currency(pendingAmount)} pendente` : 'Valores conferidos' },
+    { label: 'Estoque revisado', ok: lowStock.length === 0, detail: lowStock.length ? `${lowStock.length} item(ns) para comprar` : 'Sem itens criticos' }
+  ];
+  const readyToClose = closingChecks.every((item) => item.ok);
   const reportText = [
     `Resumo SmartFood`,
-    `Faturamento: ${currency(data.dashboard.revenue)}`,
+    `Vendas esperadas: ${currency(expectedTotal)}`,
+    `Total recebido: ${currency(receivedTotal)}`,
+    `Pendente: ${currency(pendingAmount)}`,
     `Pedidos: ${orders.length}`,
     `Pagos: ${paidOrders.length}`,
     `Cancelados: ${canceled.length}`,
+    `Ticket medio: ${currency(validOrders.length ? expectedTotal / validOrders.length : 0)}`,
+    `Comissoes de entrega: ${currency(courierCommissions)}`,
     `Estoque baixo: ${lowStock.map((item: Any) => item.name).join(', ') || 'nenhum'}`
   ].join('\n');
 
+  async function copyReport() {
+    await navigator.clipboard.writeText(reportText);
+    setActionMessage('Resumo copiado para compartilhar.');
+  }
+
+  async function replenish(item: Any) {
+    const suggestedQuantity = Math.max(0, Number(item.minStock) * 2 - Number(item.currentStock));
+    await api.post(`/ingredients/${item.id}/movement`, {
+      type: 'IN',
+      quantity: suggestedQuantity,
+      description: 'Reposicao sugerida pelo fechamento'
+    });
+    setActionMessage(`${item.name}: entrada de ${suggestedQuantity} ${item.unit} registrada.`);
+    reload();
+  }
+
   return (
     <>
+      {actionMessage && <div className="successBanner"><CheckCircle2 size={17} />{actionMessage}</div>}
       <div className="grid4">
-        <Metric title="Faturamento" value={currency(data.dashboard.revenue)} icon={WalletCards} tone="cyan" />
-        <Metric title="Pedidos pagos" value={paidOrders.length} icon={CheckCircle2} tone="green" />
-        <Metric title="Cancelados" value={canceled.length} icon={XCircle} tone="red" />
-        <Metric title="Comissoes" value={currency(courierCommissions)} icon={Bike} tone="amber" />
+        <Metric title="Vendas esperadas" value={currency(expectedTotal)} icon={WalletCards} tone="cyan" />
+        <Metric title="Recebido" value={currency(receivedTotal)} icon={CheckCircle2} tone="green" />
+        <Metric title="Pendente" value={currency(pendingAmount)} icon={Clock3} tone="red" />
+        <Metric title="Ticket medio" value={currency(validOrders.length ? expectedTotal / validOrders.length : 0)} icon={ReceiptText} tone="amber" />
       </div>
+      <section className={`card closingPanel ${readyToClose ? 'ready' : ''}`}>
+        <div className="closingSummary">
+          <span className="closingIcon"><ClipboardCheck size={24} /></span>
+          <div>
+            <small>Fechamento assistido</small>
+            <h3>{readyToClose ? 'Dia pronto para fechar' : 'Ainda existem pendencias'}</h3>
+            <p>{readyToClose ? 'Operacao, recebimentos e estoque conferidos.' : 'Resolva os pontos abaixo antes de encerrar o caixa.'}</p>
+          </div>
+        </div>
+        <div className="closingChecks">
+          {closingChecks.map((item) => (
+            <div className={item.ok ? 'done' : ''} key={item.label}>
+              {item.ok ? <CheckCircle2 size={17} /> : <AlertTriangle size={17} />}
+              <span><b>{item.label}</b><small>{item.detail}</small></span>
+            </div>
+          ))}
+        </div>
+        <div className="actions">
+          <button className="secondary compact" type="button" onClick={copyReport}><ReceiptText size={16} /> Copiar resumo</button>
+          <button className="secondary compact" type="button" onClick={() => window.print()}><Printer size={16} /> Imprimir</button>
+        </div>
+      </section>
       <div className="reportGrid">
         <section className="card">
           <div className="cardTitle"><CreditCard size={18} /><h3>Meios de pagamento</h3></div>
@@ -972,8 +1033,23 @@ function Reports() {
         <section className="card">
           <div className="cardTitle"><Package size={18} /><h3>Lista de compras</h3></div>
           {lowStock.length ? lowStock.map((item: Any) => (
-            <p className="row danger" key={item.id}><span>{item.name}</span><b>{Number(item.currentStock)} {item.unit}</b></p>
+            <div className="purchaseItem" key={item.id}>
+              <span>
+                <b>{item.name}</b>
+                <small>Atual: {Number(item.currentStock)} {item.unit} · Comprar: {Math.max(0, Number(item.minStock) * 2 - Number(item.currentStock))} {item.unit}</small>
+              </span>
+              <button className="secondary compact" type="button" onClick={() => replenish(item)}>Registrar entrada</button>
+            </div>
           )) : <EmptyState title="Estoque ok" text="Nada abaixo do minimo." />}
+        </section>
+        <section className="card">
+          <div className="cardTitle"><BarChart3 size={18} /><h3>Vendas por canal</h3></div>
+          {Object.entries(originTotals).map(([origin, total]) => (
+            <div className="channelRow" key={origin}>
+              <p className="row"><span>{originLabel[origin] || origin}</span><b>{currency(total as number)}</b></p>
+              <span className="channelTrack"><i style={{ width: `${expectedTotal ? Math.max(4, Number(total) / expectedTotal * 100) : 0}%` }} /></span>
+            </div>
+          ))}
         </section>
         <section className="card reportText">
           <div className="cardTitle"><Printer size={18} /><h3>Resumo do dia</h3></div>
