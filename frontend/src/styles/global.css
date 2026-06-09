@@ -1964,12 +1964,71 @@ textarea {
   position: sticky;
   top: 22px;
   display: grid;
-  gap: 14px;
+  align-content: start;
+  gap: 16px;
   border: 1px solid rgba(21, 32, 51, 0.08);
   border-radius: 16px;
   background: #ffffff;
   box-shadow: 0 12px 32px rgba(15, 23, 42, 0.06);
-  padding: 16px;
+  padding: 18px;
+}
+
+.tableDetailHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid rgba(21, 32, 51, 0.08);
+}
+
+.tableDetailHeader .cardTitle {
+  margin: 0;
+}
+
+.tableDetail .statusPill {
+  width: fit-content;
+}
+
+.statusPill.FREE {
+  color: #087443;
+  background: #dcfce7;
+}
+
+.statusPill.OCCUPIED {
+  color: #b42318;
+  background: #fee4e2;
+}
+
+.statusPill.WAITING_PAYMENT {
+  color: #8a5700;
+  background: #fef3c7;
+}
+
+.tableDetailSummary {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.tableDetailSummary span {
+  display: grid;
+  gap: 4px;
+  border: 1px solid rgba(21, 32, 51, 0.08);
+  border-radius: 10px;
+  background: #f8fafc;
+  padding: 11px;
+}
+
+.tableDetailSummary small {
+  color: #64748b;
+  font-size: 0.72rem;
+  font-weight: 750;
+}
+
+.tableDetailSummary b {
+  color: #111827;
+  font-size: 1.15rem;
 }
 
 .tableOrders {
@@ -1989,6 +2048,13 @@ textarea {
 
 .tableOrder small {
   color: #64748b;
+}
+
+.tableDetail > .actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  padding-top: 2px;
 }
 
 .kanbanColumn {

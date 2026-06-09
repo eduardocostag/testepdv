@@ -1089,12 +1089,18 @@ function Tables() {
           ))}
         </div>
         {selectedTable && (
-          <aside className="tableDetail">
-            <div className="cardTitle">
-              <Table2 size={18} />
-              <h3>Mesa {selectedTable.number}</h3>
+          <section className="tableDetail">
+            <div className="tableDetailHeader">
+              <div className="cardTitle">
+                <Table2 size={18} />
+                <h3>Mesa {selectedTable.number}</h3>
+              </div>
+              <span className={`statusPill ${selectedTable.status}`}>{statusLabel[selectedTable.status]}</span>
             </div>
-            <span className={`statusPill ${selectedTable.status}`}>{statusLabel[selectedTable.status]}</span>
+            <div className="tableDetailSummary">
+              <span><small>Comandas ativas</small><b>{selectedTable.orders?.length || 0}</b></span>
+              <span><small>Total de itens</small><b>{(selectedTable.orders || []).reduce((sum: number, order: Any) => sum + (order.items?.length || 0), 0)}</b></span>
+            </div>
             <div className="tableOrders">
               {(selectedTable.orders || []).length === 0 && <EmptyState title="Sem comanda" text="Abra um pedido para esta mesa." />}
               {(selectedTable.orders || []).map((order: Any) => (
@@ -1111,7 +1117,7 @@ function Tables() {
               </button>
               <Link className="primary" to="/app/pos">Abrir venda</Link>
             </div>
-          </aside>
+          </section>
         )}
       </div>
     </>
